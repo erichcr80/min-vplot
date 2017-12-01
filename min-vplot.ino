@@ -1,8 +1,9 @@
 #include "uStepper.h"
+#include "TimerOne.h"
 #include "grbl_read_float.h"
 
-uStepper motor( 80, 0, 80000, 11, 12, 2);
-uStepper motor2( 80, 1, 80000, 10, 13, 2);
+uStepper motor( 80, 0, 10000, 11, 12, 2);
+uStepper motor2( 80, 1, 10000, 10, 13, 2);
 
 float stepper_distance = 500; // mm
 
@@ -39,16 +40,19 @@ float y = 0.0;
 float da = 0.0;
 float db = 0.0;
 
-float max_speed = 3200 / 4;
+float max_speed = 200;
 
 float a_speed = 0;
 float b_speed = 0;
 
-long a_dest = 0; // 200L * 16L * 2L;
-long b_dest = 0; // 200L * 16L;
+volatile long a_dest = 0; // 200L * 16L * 2L;
+volatile long b_dest = 0; // 200L * 16L;
 
 void do_move(float new_x, float new_y)
 {
+  noInterrupts();
+  Timer1.stop();
+  
   bool log_debug = false;
 
   if (log_debug)
@@ -100,7 +104,7 @@ void do_move(float new_x, float new_y)
 
   a_dest = steps_a + motor.getPositionSteps();
   b_dest = steps_b + motor2.getPositionSteps();
-
+  
   a_speed = max_speed;
   b_speed = max_speed;
 
@@ -118,7 +122,7 @@ void do_move(float new_x, float new_y)
 
   motor.setSpeed(a_speed);
   motor2.setSpeed(b_speed);
-
+ 
   if (log_debug)
   {
     Serial.print("A speed: ");
@@ -126,9 +130,82 @@ void do_move(float new_x, float new_y)
     Serial.print(" B speed: " );
     Serial.println(b_speed);
   }
+
+ Timer1.resume();
+ interrupts();
 }
 
-static char line[255];
+static char line[64];
+
+void parse_line()
+{
+  Serial.print("Parsing line:");
+  Serial.println(line);
+  
+  uint8_t char_counter = 0;
+
+  while (line[char_counter] != 0)
+  {
+    if (line[char_counter] == ' ')
+    {
+      char_counter++;
+      continue;
+    }
+    
+    char letter = line[char_counter];
+    char_counter++;
+    
+    float value = 0.0;
+    if (read_float(line, &char_counter, &value))
+    {
+      Serial.print("Letter: ");
+      Serial.print(letter);
+      Serial.print(", Value: " );
+      Serial.println(value);
+      continue;
+    }
+    else
+    {
+      Serial.println("Not a float");
+    }   
+
+    char_counter++;
+  }
+}
+
+void receive_loop()
+{
+  char c;
+  uint8_t char_counter = 0;
+
+  while (true)
+  {   
+    if ((c = Serial.read()) != -1) 
+    {
+      if ((c == '\n') || (c == '\r')) // End of line reached
+      { 
+        line[char_counter] = 0; // Set string termination character.
+        char_counter = 0;
+
+        parse_line();
+      }
+      else 
+      {
+        line[char_counter++] = c;   
+      }
+    }
+
+    /*
+    long m1steps = motor.getPositionSteps();
+    long m2steps = motor2.getPositionSteps();
+    
+    bool motor_1_running = m1steps != a_dest;
+    bool motor_2_running = m2steps != b_dest;
+    */
+
+    
+  }
+}
 
 void setup()
 {
@@ -143,37 +220,10 @@ void setup()
 
   Serial.print("Ready: ");
 
-  char c;
-  uint8_t char_counter = 0;
+  Timer1.initialize(100); // set a timer of length 100 microseconds (or 0.1 sec - or 10Hz => the led will blink 5 times, 5 cycles of on-and-off, per second)
+  Timer1.attachInterrupt( my_loop ); // attach the service routine here
 
-  while (true)
-  {
-    if ((c = Serial.read()) != -1) 
-    {
-      if ((c == '\n') || (c == '\r')) // End of line reached
-      { 
-        line[char_counter] = 0; // Set string termination character.
-        char_counter = 0;
-
-        byte loc = 0;
-        float val = 0.0;
-        
-        if (read_float(line, &loc, &val))
-        {
-          Serial.print(val);
-        }
-        else
-        {
-          Serial.println("Not a float");
-        }       
-      }
-      else 
-      {
-        line[char_counter++] = c;   
-        //Serial.print(c); 
-      }
-    }
-  }
+  receive_loop();
 }
 
 bool has_direction = false;
@@ -182,119 +232,16 @@ bool has_amount = false;
 int incoming_direction = 0;
 int incoming_amount = 0;
 
-class box_draw
+void my_loop()
 {
-    int move_count = 0;
-
-    float x = 0.0;
-    float y = 0.0;
-
-  public:
-    int segments;
-    float side_length; // mm
-
-    box_draw(int _segments, float _side_length)
-    {
-      segments = _segments;
-      side_length = _side_length;
-    }
-
-    bool done()
-    {
-      return move_count > segments * 4 + 1;
-    }
-
-    void do_next()
-    {
-      if (move_count == 0)
-      {
-        x = side_length / 2.0;
-        y = side_length / 2.0;
-
-        do_move(x, y);
-        move_count++;
-        return;
-      }
-
-      if (move_count == segments * 4)
-      {
-        do_move(side_length / 2.0, side_length / 2.0);
-        move_count++;
-        return;
-      }
-      else if (move_count > segments * 4)
-      {
-        do_move(0, 0);
-        move_count++;
-        return;
-      }
-
-      if (move_count <= segments)
-      {
-        y -= side_length / (float)segments;
-      }
-      else if (move_count <= segments * 2)
-      {
-        x -= side_length / (float)segments;
-      }
-      else if (move_count <= segments * 3)
-      {
-        y += side_length / (float)segments;
-      }
-      else if (move_count <= segments * 4)
-      {
-        x += side_length / (float)segments;
-      }
-
-      do_move(x, y);
-      move_count++;
-    }
-};
-
-box_draw bd(2, 20.0);
-
-bool drawing_box = false;
-
-void loop()
-{
-  bool motor_1_running = motor.getPositionSteps() != a_dest;
-  bool motor_2_running = motor2.getPositionSteps() != b_dest;
-
-  if (motor_1_running)
+  if (motor.getPositionSteps() != a_dest)
     motor.step();
 
-  if (motor_2_running)
+  if (motor2.getPositionSteps() != b_dest)
     motor2.step();
 
   // Serial.println(motor_1_running);
   // Serial.println(motor_2_running);
-
-
-  if (!motor_1_running && !motor_2_running && drawing_box)
-  {
-    if (!bd.done())
-    {
-      bd.do_next();
-    }
-    else
-    {
-
-      bd = box_draw(bd.segments * 1.5, bd.side_length + 10);
-      //bd = box_draw(64, 100.0);
-
-
-      /*
-        Serial.print("New box: " );
-        Serial.print(bd.segments);
-        Serial.print(" " );
-        Serial.println(bd.side_length);
-      */
-
-      bd.do_next();
-    }
-  }
-
-  delayMicroseconds(12);
 
   /*
     Serial.print("Step1:");
@@ -304,6 +251,8 @@ void loop()
   */
 
   // send data only when you receive data:
+
+  /*
   if (Serial.available() > 0)
   {
     byte val = Serial.read();
@@ -354,4 +303,5 @@ void loop()
       }
     }
   }
+  */
 }
