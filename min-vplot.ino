@@ -7,6 +7,7 @@
 #include "grbl_read_float.h" // from grbl
 
 #define STEPPER_DISTANCE_MM 1000.0
+#define SQRT_2 1.41421356237
 
 #define ORIGIN_X STEPPER_DISTANCE_MM / 2.0 /* Assumes cold start always at X= middle point of motors and Y= 1/2 motor distance down. */
 #define ORIGIN_Y STEPPER_DISTANCE_MM / 2.0
@@ -18,26 +19,10 @@
 
 #define STEPS_PER_MM 1.0 / (PULLEY_CIRCUMFERENCE / STEPS_PER_REVOLUTION / MICROSTEP_RESOLUTION)
 
-#define MAX_FEED 500.0
+#define MAX_FEED 800.0
 #define INTERRUPT_PERIOD_US 50
 
 #define SERVO_LIFT_POSITION 90
-
-float a_length_from_xy(float x, float y)
-{
-  float dx = x - ORIGIN_X;
-  float dy = y - ORIGIN_Y;
-
-  return sqrt(dx * dx + dy * dy);
-}
-
-float b_length_from_xy(float x, float y)
-{
-  float dx = x + ORIGIN_X;
-  float dy = y - ORIGIN_Y;
-
-  return sqrt(dx * dx + dy * dy);
-}
 
 /* TODO: Interrupt period could be calculated from the maximum feed vs steps per MM. */
 
@@ -50,18 +35,76 @@ uStepper motor_b(STEPS_PER_MM, 1, 1000000 /* us / s */ / INTERRUPT_PERIOD_US, 8,
 /* Servo object */
 RBD::Servo servo(2, 1000, 2750);
 
+struct cartesian_pt
+{
+  float x = 0.0;
+  float y = 0.0;
+
+  cartesian_pt() : x(0.0), y(0.0) {}
+  cartesian_pt(const float x, const float y) : x(x), y(y) {}
+};
+
+typedef cartesian_pt cartesian_vec;
+
+struct plot_pos
+{
+  float a = 0.0;
+  float b = 0.0;
+
+  plot_pos() : a(0.0), b(0.0) {}
+  plot_pos(const float a, const float b) : a(a), b(b) {}
+};
+
+/* Inverse kinematics: Calculate plotter position from cartesian coordinates. */
+plot_pos pos_from_pt(const cartesian_pt & pt)
+{
+  float dxa = pt.x - ORIGIN_X;
+  float dxb = pt.x + ORIGIN_X;
+  
+  float dy = pt.y - ORIGIN_Y;
+  
+  return plot_pos(
+    sqrt(dxa * dxa + dy * dy),
+    sqrt(dxb * dxb + dy * dy)
+  );
+}
+
+plot_pos get_current_plot_pos()
+{
+  return plot_pos(
+    motor_a.getPositionSteps() / (STEPS_PER_MM),
+    motor_b.getPositionSteps() / (STEPS_PER_MM));
+}
+
+/* Forward kinematics: Calculate cartesian coordinates from current plotter position. 
+   Equation from: http://www.diale.org/vbot.html */
+cartesian_pt get_current_cartesian_location()
+{
+  const plot_pos current_pos = get_current_plot_pos();
+
+  const float b_p_a_sq = current_pos.b * current_pos.b + current_pos.a * current_pos.a;
+  const float b_m_a_sq = current_pos.b * current_pos.b - current_pos.a * current_pos.a;
+
+  const float x = b_m_a_sq / (2.0 * STEPPER_DISTANCE_MM);
+  const float y = ORIGIN_Y - (1.0 / SQRT_2) * 
+    sqrt(b_p_a_sq - 
+      (STEPPER_DISTANCE_MM * STEPPER_DISTANCE_MM / 2.0) -
+      ((b_m_a_sq * b_m_a_sq) / (2.0 * STEPPER_DISTANCE_MM * STEPPER_DISTANCE_MM)));
+
+  return cartesian_pt(x, y);
+}
+
 /* gcode block object; contains movement and state change data. Parsed from serial and stored in buffer. */
 class gc_block
 {
 public:
-  float x = 0.0;
-  float y = 0.0;
+  cartesian_pt pt;
   
   int feed = MAX_FEED;
   bool lift = true;
 
   gc_block() {}
-  gc_block(float x, float y, bool lift) : x(x), y(y), lift(lift) {}
+  gc_block(float x, float y, bool lift) : pt(x, y), lift(lift) {}
 };
 
 /* gcode & machine state object; contains current movement parameters and state for the plotter. */
@@ -72,11 +115,8 @@ public:
     
   bool rapid = false;
 
-  float x = 0.0;
-  float y = 0.0;
-
-  float a_length = 0.0;
-  float b_length = 0.0;
+  cartesian_pt pt;
+  plot_pos pos;
   
   long a_steps = 0L;
   long b_steps = 0L;
@@ -86,13 +126,12 @@ public:
     
   bool lift = true;
 
-  gc_state()
+  gc_state() : 
+     pos(STEPPER_DISTANCE_MM * sqrt(2.0) / 2.0, 
+         STEPPER_DISTANCE_MM * sqrt(2.0) / 2.0)
   {
-    a_length = STEPPER_DISTANCE_MM * sqrt(2.0) / 2.0;
-    b_length = STEPPER_DISTANCE_MM * sqrt(2.0) / 2.0;   
-
-    a_steps = STEPS_PER_MM * a_length;
-    b_steps = STEPS_PER_MM * b_length;
+    a_steps = STEPS_PER_MM * pos.a;
+    b_steps = STEPS_PER_MM * pos.b;
 
     a_dest = a_steps;
     b_dest = b_steps;
@@ -167,34 +206,35 @@ bool buffer_add(gc_block gc_add)
 gc_state current_state;
 
 /* This function calculates destination data, stored in the current state, the speed for new moves and sets the motor speeds. */
-void do_move(float new_x, float new_y)
+void do_move(const cartesian_pt & next_pt)
 {
   /* Disable the stepper ISR while we calculate. */
   noInterrupts();
 
-  bool log_debug = true;
+  bool log_debug = false;
 
   if (log_debug && false)
   {
     Serial.print("New position: ");
-    Serial.print(new_x);
+    Serial.print(next_pt.x);
     Serial.print(" ");
-    Serial.println(new_y);
+    Serial.println(next_pt.y);
   }
 
-  float new_a = a_length_from_xy(new_x, new_y);
-  float new_b = b_length_from_xy(new_x, new_y);
+  current_state.pt = next_pt;
+
+  const plot_pos next_pos = pos_from_pt(next_pt);
 
   if (log_debug)
   {
-    Serial.print("New length: ");
-    Serial.print(new_a);
+    Serial.print("New pos: ");
+    Serial.print(next_pos.a);
     Serial.print(" ");
-    Serial.println(new_b);
+    Serial.println(next_pos.b);
   }
 
-  float da = new_a - current_state.a_length;
-  float db = new_b - current_state.b_length;
+  float da = next_pos.a - current_state.pos.a;
+  float db = next_pos.b - current_state.pos.b;
 
   if (log_debug)
   {
@@ -204,14 +244,10 @@ void do_move(float new_x, float new_y)
     Serial.println(db);
   }
 
-  current_state.a_length = new_a;
-  current_state.b_length = new_b;
+  current_state.pos = next_pos;
 
-  current_state.x = new_x;
-  current_state.y = new_y;
-
-  long new_a_steps = STEPS_PER_MM * new_a;
-  long new_b_steps = STEPS_PER_MM * new_b;
+  long new_a_steps = STEPS_PER_MM * next_pos.a;
+  long new_b_steps = STEPS_PER_MM * next_pos.b;
 
   if (current_state.a_steps - new_a_steps == 0 && current_state.b_steps - new_b_steps == 0)
   {
@@ -229,7 +265,23 @@ void do_move(float new_x, float new_y)
     Serial.println(current_state.b_dest);
   }
 
+  calculate_and_set_speed_ratio(da, db);
+ 
+  if (log_debug)
+  {
+    Serial.print("A speed: ");
+    Serial.print(motor_a.getSpeed());
+    Serial.print(" B speed: " );
+    Serial.println(motor_b.getSpeed());
+  }
+
+ interrupts();
+}
+
+void calculate_and_set_speed_ratio(float da, float db)
+{
   /* Calculate feeds such that we arrive at the end of the segment on both axes simultaneously. 
+   * This is now called from prepare_motion to correct the difference between cartesian and kinematic lines.
    * TODO: Improve to use Bresenham. */
    
   float a_speed = current_state.feed;
@@ -249,20 +301,10 @@ void do_move(float new_x, float new_y)
 
   motor_a.setSpeed(a_speed);
   motor_b.setSpeed(b_speed);
- 
-  if (log_debug)
-  {
-    Serial.print("A speed: ");
-    Serial.print(a_speed);
-    Serial.print(" B speed: " );
-    Serial.println(b_speed);
-  }
-
- interrupts();
 }
 
 void do_lift(bool lift)
-{
+{ 
   bool log_debug = false;
 
   if (log_debug)
@@ -317,24 +359,19 @@ void parse_line()
       }
       else if (letter == 'M')
       {
-        if (value == 0.0)
+        if (value == 0.0) /* diagnostic printout */
         {
-          Serial.print(motor_a.getPositionSteps());
-          Serial.print(" ");
-
-        /*
-          Serial.print(a_dest);
+          Serial.print(current_state.a_dest);
           Serial.print(" ");    
-          Serial.print(a_speed);
-          Serial.print(" ");  
-          Serial.print(motor_b.getPositionSteps());
+          Serial.print(motor_a.getSpeed());
           Serial.print(" ");
-          Serial.print(b_dest);
+          Serial.print(current_state.b_dest);
           Serial.print(" "); 
-          Serial.print(b_speed);
-          Serial.print(" ");
-          Serial.println(get_buffer_empty());
-          */
+          Serial.print(motor_b.getSpeed());
+          Serial.print(" ");  
+          Serial.print(motor_a.getPositionSteps());
+          Serial.print(" ");          
+          Serial.println(motor_b.getPositionSteps());
         }
         else
         {         
@@ -347,11 +384,11 @@ void parse_line()
       }
       else if (letter == 'X')
       {
-        current_block.x = value;
+        current_block.pt.x = value;
       }
       else if (letter == 'Y')
       {
-        current_block.y = value;
+        current_block.pt.y = value;
       }
           
       continue;
@@ -379,23 +416,30 @@ void parse_line()
 }
 
 /* Prepare motion from the buffer; if we have arrived at our end point, start the next move. */
+
+/* This is called from the main loop, so there is a certain amount of delay from the end of 
+ * one movement to the start of another (for instance, while reading serial inputs or calculating 
+ * speeds below). It would be better if the stepper interrupt was allowed to advance to the next move. */
+ 
 void prepare_motion()
 {
   // why is ustepper disabling?
   pinMode(ENABLE_PIN, OUTPUT);
   //digitalWrite(ENABLE_PIN, HIGH);
+
+  long a_current_steps = motor_a.getPositionSteps();
+  long b_current_steps = motor_b.getPositionSteps();
   
-  if (motor_a.getPositionSteps() == current_state.a_dest && 
-      motor_b.getPositionSteps() == current_state.b_dest)
+  if (a_current_steps == current_state.a_dest && b_current_steps == current_state.b_dest)
   {    
     if (!get_buffer_empty())
     {
       bool was_full = get_buffer_full();
       gc_block block = buffer_advance();
 
-      if (block.x != current_state.x || block.y != current_state.y)
+      if (block.pt.x != current_state.pt.x || block.pt.y != current_state.pt.y)
       {         
-         do_move(block.x, block.y);
+         do_move(block.pt);
       }
       else if (block.lift != current_state.lift)
       {       
@@ -411,6 +455,58 @@ void prepare_motion()
 
       if (was_full)
         Serial.println("ok"); // let connection know we are ready for more input
+    }
+  }
+  else /* moving to destination */
+  {  
+    /* Moving the steppers at constant speeds creates an arc in cartesian space, so
+     * we must constantly re-calculate speeds to keep us on a straight cartesian line.
+     * 
+     * This method creates a vector from the current plotter cartesian position to the
+     * commanded cartesian target point, creates a target point for setting speeds a short
+     * distance away to minimize error (here 1mm), then sets speeds to arrive at that point.
+     * 
+     * If the length to destination is less than 1mm, our error will be minimal so skip.
+     * 
+     * float divide/sqrt is ~500 avr clock cycles. (0.03125ms @ 16Mhz?)
+     * I count 13 divides/mults and 4 sqrts in these calculations for perhaps .5 ms total.
+     */
+
+    const plot_pos pos = get_current_plot_pos();
+    const cartesian_pt pt = get_current_cartesian_location();
+
+    const cartesian_vec vec(current_state.pt.x /* g-code target */ - pt.x, current_state.pt.y - pt.y);
+    const float vec_length = sqrt(vec.x * vec.x + vec.y * vec.y);
+
+    if (vec_length > 1.0)
+    {
+      const cartesian_vec norm_vec(vec.x / vec_length, vec.y / vec_length);
+
+      cartesian_pt speed_target_pt(norm_vec.x + pt.x, norm_vec.y + pt.y);
+      plot_pos speed_target_pos = pos_from_pt(speed_target_pt);
+
+      calculate_and_set_speed_ratio(speed_target_pos.a - pos.a, speed_target_pos.b - pos.b);
+
+      bool log_debug = false;
+      if (log_debug)
+      {
+        Serial.print(pos.a);
+        Serial.print(" ");
+        Serial.print(pos.b);
+        Serial.print(" ");
+        Serial.print(pt.x);
+        Serial.print(" ");
+        Serial.print(pt.y);
+        Serial.print(" ");
+        Serial.print(norm_vec.x);
+        Serial.print(" ");
+        Serial.print(norm_vec.y);      
+        Serial.print(" ");
+        Serial.print("A speed: ");
+        Serial.print(motor_a.getSpeed());
+        Serial.print(" B speed: " );
+        Serial.println(motor_b.getSpeed()); 
+      }        
     }
   }
 }
