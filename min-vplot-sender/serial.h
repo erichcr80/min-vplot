@@ -1,17 +1,8 @@
 #pragma once
 
-#include <string>
+#include "types.h"
 
-// hack for std::optional support with Xcode 9.2
-#ifdef WIN32
-#include <optional>
-template<typename N>
-using opt = std::optional<N>;
-#else
-#include <experimental/optional>
-template<typename N>
-using opt = std::experimental::optional<N>;
-#endif
+#include <string>
 
 class serial
 {

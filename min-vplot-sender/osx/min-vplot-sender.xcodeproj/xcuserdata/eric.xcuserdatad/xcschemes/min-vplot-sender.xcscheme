@@ -69,7 +69,7 @@
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "/Users/eric/Documents/corona6.nc"
+            argument = "/Users/eric/Documents/corona7.nc"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

@@ -10,6 +10,8 @@
 #include "serial_osx.h"
 #endif
 
+#include "parse.h"
+
 using namespace std;
 
 /*
@@ -23,6 +25,32 @@ using namespace std;
  */
 int main(int argc, const char * argv[])
 {
+	ifstream file(argv[2], ifstream::in);
+
+	if (!file)
+	{
+		cout << "Input file error:" << argv[2] << endl;
+		return 1;
+	}
+
+	gcode_parser parser;
+
+	string str;
+	while (getline(file, str))
+		if (!parser.add(str))
+		{
+			cout << "NC file parsing error" << endl;
+			return 1;
+		}
+
+//#define DUMP_DEBUG
+#ifdef DUMP_DEBUG
+	for (auto line : parser)
+		std::cout << line << std::endl;
+
+	return 0;
+#endif
+
 #ifdef WIN32
 	serial_win32 serial;
 #else
@@ -33,20 +61,6 @@ int main(int argc, const char * argv[])
 	{
 		return 1;
 	}
-
-	ifstream file(argv[2], ifstream::in);
-	vector<string> file_lines;
-
-	if (!file)
-	{
-		cout << "Input file error" << endl;
-		return 1;
-	}
-
-	// Read and store all file lines
-	string str;
-	while (getline(file, str))
-		file_lines.push_back(str);
 
 	string input;
 
@@ -61,7 +75,7 @@ int main(int argc, const char * argv[])
 		}
 		else if (result->length() > 0)
 		{
-			input.append(*result); // Add new input; may be incomplete response
+			input.append(*result); // Add new input; may be incomplete response.
 
 			auto line_ending_index = string::npos;
 
@@ -74,14 +88,14 @@ int main(int argc, const char * argv[])
 
 				if (line.compare("ok") == 0 || line.compare("Ready") == 0)
 				{
-					if (!file_lines.empty())
+					if (!parser.empty())
 					{
-						serial.write(file_lines.front());
+						serial.write(parser.front());
 
-						file_lines.erase(file_lines.begin(), file_lines.begin() + 1);
+						parser.erase(parser.begin(), parser.begin() + 1);
 					}
 
-					if (file_lines.empty()) // done
+					if (parser.empty()) // done
 						return 0;
 				}
 			}
