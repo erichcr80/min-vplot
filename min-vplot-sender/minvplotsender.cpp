@@ -11,6 +11,7 @@
 #endif
 
 #include "parse.h"
+#include "transforms.h"
 
 using namespace std;
 
@@ -37,16 +38,30 @@ int main(int argc, const char * argv[])
 
 	string str;
 	while (getline(file, str))
+	{
 		if (!parser.add(str))
 		{
 			cout << "NC file parsing error" << endl;
-			return 1;
+			break;
+			//return 1;
 		}
+	}
 
-//#define DUMP_DEBUG
+	cout << "x extent: (" << parser.get_x_extent().first << ", " << parser.get_x_extent().second << "), "
+		<< "y extent: (" << parser.get_y_extent().first << ", " << parser.get_y_extent().second << ")" << endl;
+
+	vector<transformer> transforms;
+	transforms.push_back(center_x(parser.get_x_extent()));
+	transforms.push_back(in_to_mm());
+
+	transformer all_transforms(composite(transforms));
+
+#define DUMP_DEBUG
 #ifdef DUMP_DEBUG
-	for (auto line : parser)
-		std::cout << line << std::endl;
+	for (auto & block : parser)
+	{
+		std::cout << block.transform(all_transforms) << std::endl;
+	}
 
 	return 0;
 #endif
@@ -90,7 +105,7 @@ int main(int argc, const char * argv[])
 				{
 					if (!parser.empty())
 					{
-						serial.write(parser.front());
+						serial.write(parser.front().transform(all_transforms));
 
 						parser.erase(parser.begin(), parser.begin() + 1);
 					}

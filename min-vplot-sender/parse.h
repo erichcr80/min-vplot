@@ -6,79 +6,74 @@
 
 #include "types.h"
 #include "arc.h"
+#include "block.h"
 
-class gcode_parser : public std::vector<std::string>
+class gcode_parser : public std::vector<block>
 {
-    float x = 0.0, y = 0.0;
-    
-    void update_pos(opt<float> x_value, opt<float> y_value)
-    {
-        if (x_value)
-            x = *x_value;
-        
-        if (y_value)
-            y = *y_value;
-    }
-    
-    static opt<float> parse_float(const std::string line, char g_char)
-    {
-        const std::regex rr = std::regex("((\\+|-)?[[:digit:]]+)(\\.(([[:digit:]]+)?))?");
-        
-        auto char_idx = line.find(g_char);
-        
-        if (char_idx == std::string::npos)
-            return opt<float>();
-        
-        std::smatch match;
-        const std::string match_str = line.substr(char_idx + 1);
-        if (std::regex_search(match_str, match, rr))
-            return std::stof(match.str(0));
-        
-        return opt<float>();
-    }
-    
+	range x_extent = range(1e6f, -1e6f), y_extent = range(1e6f, -1e6f);
+	float x = 0.0f, y = 0.0f;
+
+	void update_pos(optional<float> x_value, optional<float> y_value)
+	{
+		auto extend_range = [](range & r, float val)
+		{
+			if (val < r.first)
+				r.first = val;
+			else if (val > r.second)
+				r.second = val;
+		};
+
+		if (x_value)
+		{
+			x = *x_value;
+			extend_range(x_extent, x);
+		}
+
+		if (y_value)
+		{
+			y = *y_value;
+			extend_range(y_extent, y);
+		}
+	}
+
 public:
-    bool add(const std::string line)
-    {
-        auto add_move = [&](pos2 loc)
-        {
-            std::stringstream buf;
-            
-            buf << "G01 ";
-            buf << "X" << loc.first << " ";
-            buf << "Y" << loc.second << " ";
-            
-            push_back(buf.str());
-        };
-        
-        if (line.find("G02") != std::string::npos || line.find("G03") != std::string::npos)
-        {
-            const auto x_value = parse_float(line, 'X');
-            const auto y_value = parse_float(line, 'Y');
-            const auto i_value = parse_float(line, 'I');
-            const auto j_value = parse_float(line, 'J');
-            
-            bool is_g2 = line.find("G02") != std::string::npos;
-            
-            if (!move_arc(pos2(x, y), pos2(*x_value, *y_value), pos2(*i_value, *j_value), 0.5 /* tol - mm */, is_g2 ? cw : ccw, add_move))
-                return false;
-            
-            update_pos(x_value, y_value);
-        }
-        else if (line.find("G00") != std::string::npos || line.find("G01") != std::string::npos)
-        {
-            const auto x_value = parse_float(line, 'X');
-            const auto y_value = parse_float(line, 'Y');
-            
-            update_pos(x_value, y_value);
-            
-            add_move(pos2(x, y));
-        }
-        else
-        {
-            push_back(line);
-        }
-                
-        return true;
-    }
+	range get_x_extent() const { return x_extent; }
+	range get_y_extent() const { return y_extent; }
+
+	bool add(const std::string & line)
+	{
+		block b(line);
+
+		if (b.g_number && (*b.g_number == 2 || *b.g_number == 3))
+		{
+			auto arc_blocks = move_arc(
+				pos2(x, y),
+				pos2(*b.x, *b.y),
+				pos2(*b.i, *b.j),
+				0.01f /* tol - mm */,
+				*b.g_number == 2 ? cw : ccw);
+
+			insert(end(), arc_blocks.begin(), arc_blocks.end());
+
+			update_pos(*b.x, *b.y);
+		}
+		else if (b.g_number && (*b.g_number == 0 || *b.g_number == 1))
+		{
+			update_pos(*b.x, *b.y);
+
+			push_back(b);
+		}
+		else if (b.g_number && (*b.g_number == 20 || *b.g_number == 21))
+		{
+			block::new_block_unit = *b.g_number == 20 ? units::in : units::mm;
+
+			push_back(b);
+		}
+		else
+		{
+			push_back(b);
+		}
+
+		return true;
+	}
 };

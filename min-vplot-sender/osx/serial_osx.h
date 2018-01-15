@@ -57,7 +57,7 @@ public:
         return true;
     }
 
-	virtual opt<std::string> read() const
+	virtual optional<std::string> read() const
     {
         unsigned int BUFFER_SIZE = 256;
         char buffer[BUFFER_SIZE];
@@ -69,7 +69,7 @@ public:
         }
         else
         {
-            return opt<std::string>();
+            return nullopt;
         }
     }
     
