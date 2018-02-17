@@ -22,8 +22,7 @@ using namespace std;
  This utility communicates with a min-vplot controller through a serial interface.
  It sends the contents of the provided NC file to the provided COM port/USB device.
 
- Argument 1 - Serial port identifier (e.g. COM7, /dev/cu.usbmodem1411)
- Argument 2 - Path to NC file
+ See options.h for arguments.
  */
 int main(int argc, const char * argv[])
 {
@@ -55,26 +54,26 @@ int main(int argc, const char * argv[])
 		}
 	}
 
-#define DUMP_DEBUG
-#ifdef DUMP_DEBUG
-	cout << "x extent: (" << parser.get_x_extent().first << ", " << parser.get_x_extent().second << "), "
-		 << "y extent: (" << parser.get_y_extent().first << ", " << parser.get_y_extent().second << ")" << endl;
-
 	list<block::transformer> transforms;
+
+	if (opt.center_x)
+		transforms.push_back(center_x(parser.get_x_extent()));
+
+	if (opt.center_y)
+		transforms.push_back(center_y(parser.get_y_extent()));
 
 	if (opt.scale_width)
 		transforms.push_back(scale_width(parser.get_x_extent(), *opt.scale_width));
 	
 	if (opt.scale_height)
 		transforms.push_back(scale_height(parser.get_y_extent(), *opt.scale_height));
-	
-	if (opt.center_x)
-		transforms.push_back(center_x(parser.get_x_extent()));
-	
-	if (opt.center_y)
-		transforms.push_back(center_y(parser.get_y_extent()));
 
 	block::transformer all_transforms(composite(transforms));
+
+//#define DUMP_DEBUG
+#ifdef DUMP_DEBUG
+	cout << "(x extent: (" << parser.get_x_extent().first << ", " << parser.get_x_extent().second << "), "
+		<< "y extent: (" << parser.get_y_extent().first << ", " << parser.get_y_extent().second << "))" << endl;
 
 	for (auto & block : parser)
 	{
