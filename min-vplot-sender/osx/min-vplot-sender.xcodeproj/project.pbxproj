@@ -27,12 +27,13 @@
 		07120C981FFACA7400F13BD5 /* serial_osx.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = serial_osx.h; sourceTree = "<group>"; };
 		07120C991FFACA7400F13BD5 /* minvplotsender.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = minvplotsender.cpp; path = ../minvplotsender.cpp; sourceTree = "<group>"; };
 		07120C9A1FFACA7400F13BD5 /* serial.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = serial.h; path = ../serial.h; sourceTree = "<group>"; };
+		072DE7AB202F57CE00472430 /* options.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = options.h; sourceTree = "<group>"; };
 		075B66D82001847900B40126 /* parse.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = parse.h; path = ../parse.h; sourceTree = "<group>"; };
 		079B55E4200A9BDF0051A1CE /* types.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = types.h; path = ../types.h; sourceTree = "<group>"; };
 		079B55E5200A9BE00051A1CE /* arc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = arc.h; path = ../arc.h; sourceTree = "<group>"; };
 		079B55E6200ABF9F0051A1CE /* min-vplot-sender */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "min-vplot-sender"; path = ..; sourceTree = "<group>"; };
-		079B55E7200ABFC30051A1CE /* transforms.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ../transforms.h; sourceTree = "<group>"; };
-		079B55E9200BC0590051A1CE /* block.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ../block.h; sourceTree = "<group>"; };
+		07D8A4B6200DAD5F00C5341F /* transforms.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = transforms.h; path = ../transforms.h; sourceTree = "<group>"; };
+		07D8A4B7200DAD6000C5341F /* block.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = block.h; path = ../block.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,13 +68,14 @@
 			children = (
 				079B55E6200ABF9F0051A1CE /* min-vplot-sender */,
 				079B55E5200A9BE00051A1CE /* arc.h */,
+				072DE7AB202F57CE00472430 /* options.h */,
 				079B55E4200A9BDF0051A1CE /* types.h */,
 				07120C991FFACA7400F13BD5 /* minvplotsender.cpp */,
 				07120C981FFACA7400F13BD5 /* serial_osx.h */,
 				07120C9A1FFACA7400F13BD5 /* serial.h */,
 				075B66D82001847900B40126 /* parse.h */,
-				079B55E7200ABFC30051A1CE /* transforms.h */,
-				079B55E9200BC0590051A1CE /* block.h */,
+				07D8A4B7200DAD6000C5341F /* block.h */,
+				07D8A4B6200DAD5F00C5341F /* transforms.h */,
 			);
 			name = "min-vplot-sender";
 			sourceTree = "<group>";

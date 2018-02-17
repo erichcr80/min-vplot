@@ -73,7 +73,7 @@ public:
 		std::string input;
 
 		if (!ReadFile(m_handle, buf, buf_size, &chars_read, NULL))
-			return nullptr;
+			return nullopt;
 
 		input.append(buf);
 		return input;
@@ -83,8 +83,11 @@ public:
 	{
 		std::string str_with_line_ending = string + "\r\n";
 
+		const char * buf = str_with_line_ending.c_str();
+		const int len = static_cast<DWORD>(str_with_line_ending.length());
+
 		DWORD bytes_written = 0;
-		if (!WriteFile(m_handle, str_with_line_ending.c_str(), static_cast<DWORD>(str_with_line_ending.length()), &bytes_written, NULL))
+		if (!WriteFile(m_handle, buf, len, &bytes_written, NULL))
 		{
 			std::cout << "write_serial error" << std::endl;
 			return false;

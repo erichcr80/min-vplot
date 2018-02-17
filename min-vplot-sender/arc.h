@@ -37,7 +37,7 @@ std::vector<block> move_arc(pos2 start, pos2 dest, pos2 dcenter, float arc_tol, 
 
 	const float arc_radius = sqrt(pow(start_vec.first, 2) + pow(start_vec.second, 2));
 	const float dest_arc_radius = sqrt(pow(dest_vec.first, 2) + pow(dest_vec.second, 2));
-	if (abs(arc_radius - dest_arc_radius) > 0.010)
+	if (abs(arc_radius - dest_arc_radius) > 0.50)
 	{
 		assert(!"start/destination radii different");
 		return blocks;
@@ -48,7 +48,7 @@ std::vector<block> move_arc(pos2 start, pos2 dest, pos2 dcenter, float arc_tol, 
 
 	if (arc_length < arc_tol) /* Arc length less than arc tolerance, just move to destination. */
 	{
-		blocks.push_back(block(dest));
+		blocks.push_back(block(dest, units::mm));
 		return blocks;
 	}
 
@@ -63,11 +63,11 @@ std::vector<block> move_arc(pos2 start, pos2 dest, pos2 dcenter, float arc_tol, 
 		const float move_x = cos(current_angle) * arc_radius + center.first;
 		const float move_y = sin(current_angle) * arc_radius + center.second;
 
-		blocks.push_back(block(pos2(move_x, move_y)));
+		blocks.push_back(block(pos2(move_x, move_y), units::mm));
 
 		current_dangle += tol_angle;
 	}
 
-	blocks.push_back(block(dest));
+	blocks.push_back(block(dest, units::mm));
 	return blocks;
 }

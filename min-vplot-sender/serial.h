@@ -11,6 +11,10 @@ public:
 
 	virtual optional<std::string> read() const = 0;
 	virtual bool write(const std::string & string) const = 0;
+    virtual bool writeln(const std::string & string) const
+    {
+        return write(string + "\r");
+    }
 
 	virtual void sleep(const unsigned int ms) const = 0;
 };

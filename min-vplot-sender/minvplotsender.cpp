@@ -12,6 +12,7 @@
 
 #include "parse.h"
 #include "transforms.h"
+#include "options.h"
 
 using namespace std;
 
@@ -26,11 +27,19 @@ using namespace std;
  */
 int main(int argc, const char * argv[])
 {
-	ifstream file(argv[2], ifstream::in);
+	auto opt = parse_options(argc, argv);
+
+	if (opt.error)
+	{
+		cout << *opt.error << "\n\n" << opt.man << endl;
+		return 1;
+	}
+
+	ifstream file(opt.nc_path, ifstream::in);
 
 	if (!file)
 	{
-		cout << "Input file error:" << argv[2] << endl;
+		cout << "Input file error:" << opt.nc_path << endl;
 		return 1;
 	}
 
@@ -42,22 +51,31 @@ int main(int argc, const char * argv[])
 		if (!parser.add(str))
 		{
 			cout << "NC file parsing error" << endl;
-			break;
-			//return 1;
+			return 1;
 		}
 	}
 
-	cout << "x extent: (" << parser.get_x_extent().first << ", " << parser.get_x_extent().second << "), "
-		<< "y extent: (" << parser.get_y_extent().first << ", " << parser.get_y_extent().second << ")" << endl;
-
-	vector<transformer> transforms;
-	transforms.push_back(center_x(parser.get_x_extent()));
-	transforms.push_back(in_to_mm());
-
-	transformer all_transforms(composite(transforms));
-
 #define DUMP_DEBUG
 #ifdef DUMP_DEBUG
+	cout << "x extent: (" << parser.get_x_extent().first << ", " << parser.get_x_extent().second << "), "
+		 << "y extent: (" << parser.get_y_extent().first << ", " << parser.get_y_extent().second << ")" << endl;
+
+	list<block::transformer> transforms;
+
+	if (opt.scale_width)
+		transforms.push_back(scale_width(parser.get_x_extent(), *opt.scale_width));
+	
+	if (opt.scale_height)
+		transforms.push_back(scale_height(parser.get_y_extent(), *opt.scale_height));
+	
+	if (opt.center_x)
+		transforms.push_back(center_x(parser.get_x_extent()));
+	
+	if (opt.center_y)
+		transforms.push_back(center_y(parser.get_y_extent()));
+
+	block::transformer all_transforms(composite(transforms));
+
 	for (auto & block : parser)
 	{
 		std::cout << block.transform(all_transforms) << std::endl;
@@ -72,10 +90,14 @@ int main(int argc, const char * argv[])
 	serial_osx serial;
 #endif
 
-	if (!serial.setup(argv[1]))
+	if (!serial.setup(opt.port_identifier))
 	{
 		return 1;
 	}
+
+	serial.sleep(100);
+	serial.write(">");
+	serial.sleep(100);
 
 	string input;
 
@@ -107,7 +129,7 @@ int main(int argc, const char * argv[])
 					{
 						serial.write(parser.front().transform(all_transforms));
 
-						parser.erase(parser.begin(), parser.begin() + 1);
+						parser.pop_front();
 					}
 
 					if (parser.empty()) // done

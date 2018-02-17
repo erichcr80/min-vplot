@@ -2,7 +2,7 @@
 
 #include "block.h"
 
-transformer in_to_mm()
+block::transformer in_to_mm()
 {
 	return [](block b)
 	{
@@ -22,7 +22,7 @@ transformer in_to_mm()
 	};
 }
 
-transformer mm_to_in()
+block::transformer mm_to_in()
 {
 	return [](block b)
 	{
@@ -42,7 +42,7 @@ transformer mm_to_in()
 	};
 }
 
-transformer center_x(const range & x_extent)
+block::transformer center_x(const range & x_extent)
 {
 	auto x_center = (x_extent.second + x_extent.first) / 2.0f;
 
@@ -55,7 +55,54 @@ transformer center_x(const range & x_extent)
 	};
 }
 
-transformer composite(std::vector<transformer> transforms)
+block::transformer center_y(const range & y_extent)
+{
+	auto y_center = (y_extent.second + y_extent.first) / 2.0f;
+	
+	return [y_center](block b)
+	{
+		if (b.y)
+			b.y = *b.y - y_center;
+		
+		return b;
+	};
+}
+
+block::transformer scale_width(const range & original_x_extent, float new_width)
+{
+	auto original_width = original_x_extent.second - original_x_extent.first;
+	auto scale_factor = new_width / original_width;
+	
+	return [scale_factor](block b)
+	{
+		if (b.x)
+			b.x = *b.x * scale_factor;
+		
+		if (b.y)
+			b.y = *b.y * scale_factor;
+		
+		return b;
+	};
+}
+
+block::transformer scale_height(const range & original_y_extent, float new_height)
+{
+	auto original_height = original_y_extent.second - original_y_extent.first;
+	auto scale_factor = new_height / original_height;
+	
+	return [scale_factor](block b)
+	{
+		if (b.x)
+			b.x = *b.x * scale_factor;
+		
+		if (b.y)
+			b.y = *b.y * scale_factor;
+		
+		return b;
+	};
+}
+
+block::transformer composite(std::list<block::transformer> & transforms)
 {
 	return [transforms](block b)
 	{

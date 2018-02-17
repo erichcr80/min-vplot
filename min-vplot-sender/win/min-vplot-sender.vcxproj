@@ -148,6 +148,7 @@
   <ItemGroup>
     <ClInclude Include="..\arc.h" />
     <ClInclude Include="..\block.h" />
+    <ClInclude Include="..\options.h" />
     <ClInclude Include="..\parse.h" />
     <ClInclude Include="..\serial.h" />
     <ClInclude Include="..\transforms.h" />
