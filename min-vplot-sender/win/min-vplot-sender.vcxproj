@@ -151,6 +151,7 @@
     <ClInclude Include="..\options.h" />
     <ClInclude Include="..\parse.h" />
     <ClInclude Include="..\serial.h" />
+    <ClInclude Include="..\trace.h" />
     <ClInclude Include="..\transforms.h" />
     <ClInclude Include="..\types.h" />
     <ClInclude Include="serial_windows.h" />

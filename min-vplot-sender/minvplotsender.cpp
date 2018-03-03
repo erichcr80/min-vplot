@@ -13,6 +13,7 @@
 #include "parse.h"
 #include "transforms.h"
 #include "options.h"
+#include "trace.h"
 
 using namespace std;
 
@@ -67,6 +68,14 @@ int main(int argc, const char * argv[])
 	
 	if (opt.scale_height)
 		transforms.push_back(scale_height(parser.get_y_extent(), *opt.scale_height));
+
+	if (opt.trace_extents_only)
+	{
+		gcode_parser extents_gcode;
+		extents_gcode.add(make_outline_trace(parser.get_x_extent(), parser.get_y_extent()));
+
+		parser = extents_gcode;
+	}
 
 	block::transformer all_transforms(composite(transforms));
 
@@ -132,7 +141,10 @@ int main(int argc, const char * argv[])
 					}
 
 					if (parser.empty()) // done
+					{
+						serial.write(block(pos2(0.0f, 0.0f))); // return to home
 						return 0;
+					}
 				}
 			}
 

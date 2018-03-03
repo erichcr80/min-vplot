@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <list>
 
 #include <assert.h>
 #include <cmath>
@@ -14,9 +15,9 @@ enum move_arc_dir
 	ccw
 };
 
-std::vector<block> move_arc(pos2 start, pos2 dest, pos2 dcenter, float arc_tol, move_arc_dir dir)
+std::list<block> move_arc(pos2 start, pos2 dest, pos2 dcenter, float arc_tol, move_arc_dir dir)
 {
-	std::vector<block> blocks;
+	std::list<block> blocks;
 
 	const vec2 center{ start.first + dcenter.first, start.second + dcenter.second };
 

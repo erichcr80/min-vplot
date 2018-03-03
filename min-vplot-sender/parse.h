@@ -17,7 +17,7 @@ class gcode_parser : public std::list<block>
 	float x = 0.0f;
 	float y = 0.0f;
     
-	void update_pos(block & b)
+	void update_pos(const block & b)
 	{
 		auto extend_range = [](range & r, float val)
 		{
@@ -44,6 +44,19 @@ public:
 	range get_x_extent() const { return x_extent; }
 	range get_y_extent() const { return y_extent; }
 
+	void add(const block & b)
+	{
+		update_pos(b);
+
+		push_back(b);
+	}
+
+	void add(const list<block> & blocks)
+	{
+		for (auto b : blocks)
+			add(b);
+	}
+
 	bool add(const std::string & line)
 	{
 		if (line.empty())
@@ -66,25 +79,21 @@ public:
 				0.5f /* tol - mm */,
 				*b.g_number == 2 ? cw : ccw);
 			
-			insert(end(), arc_blocks.begin(), arc_blocks.end());
-			
-			update_pos(b);
+			add(arc_blocks);
 		}
 		else if (b.g_number && (*b.g_number == 0 || *b.g_number == 1))
 		{
-			update_pos(b);
-			
-			push_back(b);
+			add(b);
 		}
 		else if (b.g_number && (*b.g_number == 20 || *b.g_number == 21))
 		{
 			block::new_block_unit = *b.g_number == 20 ? units::in : units::mm;
 			
-			push_back(b);
+			add(b);
 		}
 		else
 		{
-			push_back(b);
+			add(b);
 		}
 		
 		return true;

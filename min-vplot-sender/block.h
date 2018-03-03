@@ -12,7 +12,7 @@ std::ostream & operator<<(std::ostream & of, const block & b);
 struct block
 {
 	using transformer = std::function<block(block block)>;
-    
+
 	std::string line;
 
 	units unit = units::unknown;
@@ -24,13 +24,13 @@ struct block
 
 	optional<float> x, y, i, j;
 
-	block(pos2 position, units unit) : unit(unit)
+	block(pos2 position, units unit = units::mm) : unit(unit)
 	{
 		g_number = 1;
 
 		x = get_converted(position.first);
 		y = get_converted(position.second);
-		
+
 		unit = units::mm;
 	}
 
@@ -43,21 +43,21 @@ struct block
 		y = parse_float(line, 'Y');
 		i = parse_float(line, 'I');
 		j = parse_float(line, 'J');
-		
+
 		if (x)
 			x = get_converted(*x);
 
 		if (y)
 			y = get_converted(*y);
-		
+
 		if (i)
 			i = get_converted(*i);
-		
+
 		if (j)
 			j = get_converted(*j);
-		
+
 		unit = units::mm;
-		
+
 		g_number = parse_int(line, 'G');
 		m_number = parse_int(line, 'M');
 	}
@@ -71,15 +71,15 @@ struct block
 	{
 		return t(*this);
 	}
-	
+
 	float get_converted(float value)
 	{
 		if (unit == units::in)
 			return value * 25.4f;
-		
+
 		return value;
 	}
-	
+
 	operator std::string() const
 	{
 		std::stringstream buf;
@@ -95,7 +95,7 @@ struct block
 		if (char_idx == std::string::npos)
 			return optional<float>();
 
-        const std::regex rr = std::regex("((\\+|-)?[[:digit:]]+)(\\.(([[:digit:]]+)?))?");
+		const std::regex rr = std::regex("((\\+|-)?[[:digit:]]+)(\\.(([[:digit:]]+)?))?");
 
 		std::smatch match;
 		const std::string match_str = line.substr(char_idx + 1);
