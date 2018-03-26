@@ -1,18 +1,19 @@
 /* min-vplot: Minimal motion controller for v-plotter. Implements serial interface for NC. */
 
+#include <EEPROM.h>
 #include <RBD_Servo.h>
 #include "uStepper.h"
 #include "TimerOne.h"
 
 #include "grbl_read_float.h" // from grbl
 
-#define STEPPER_DISTANCE_MM 1000.0
+#define STEPPER_DISTANCE_MM 1800.0
 #define SQRT_2 1.41421356237
 
 #define ORIGIN_X STEPPER_DISTANCE_MM / 2.0 /* Assumes cold start always at X= middle point of motors and Y= 1/2 motor distance down. */
 #define ORIGIN_Y STEPPER_DISTANCE_MM / 2.0
 
-#define PULLEY_RADIUS_MM 6.0 /* There is likely some error here; a drawn 30mm box measures 32.1mm. */
+#define PULLEY_RADIUS_MM 6.3662
 #define PULLEY_CIRCUMFERENCE TWO_PI * PULLEY_RADIUS_MM
 #define STEPS_PER_REVOLUTION 200.0
 #define MICROSTEP_RESOLUTION 16.0
@@ -213,7 +214,7 @@ void do_move(const cartesian_pt & next_pt)
 
   bool log_debug = false;
 
-  if (log_debug && false)
+  if (log_debug)
   {
     Serial.print("New position: ");
     Serial.print(next_pt.x);
@@ -287,13 +288,29 @@ void calculate_and_set_speed_ratio(float da, float db)
   float a_speed = current_state.feed;
   float b_speed = current_state.feed;
 
+  long a_current_steps = motor_a.getPositionSteps();
+  long b_current_steps = motor_b.getPositionSteps();
+
+  long da_steps = abs(current_state.a_dest - a_current_steps);
+  long db_steps = abs(current_state.b_dest - b_current_steps);
+  
   if (abs(da) > abs(db))
   {
-    b_speed = a_speed * abs(db / da);
+    b_speed = a_speed * abs(db / da);   
+
+    if (abs(db_steps) > 0)
+    {
+      b_speed = max(b_speed, 1.0);
+    }
   }
   else
   {
     a_speed = b_speed * abs(da / db);
+
+    if (abs(da_steps) > 0)
+    {
+      a_speed = max(a_speed, 1.0);   
+    }
   }
 
   a_speed = da > 0 ? a_speed : -a_speed;
@@ -317,12 +334,13 @@ void do_lift(bool lift)
   servo.moveToDegrees(lift ? SERVO_LIFT_POSITION : 0);
 }
 
-static char line[64];
+static char line[128];
 
 void parse_line()
 { 
   uint8_t char_counter = 0;
   bool movement = false;
+  bool comment = false;
 
   gc_block current_block = buffer_last();
   
@@ -331,6 +349,20 @@ void parse_line()
     if (line[char_counter] == ' ' || line[char_counter] == '\r' || line[char_counter] == '\n')
     {
       char_counter++;
+      continue;
+    }
+
+    if (line[char_counter] == '(' || comment)
+    {
+      comment = true;
+      char_counter++;
+      continue;
+    }
+
+    if (line[char_counter] == ')')
+    {
+      char_counter++;
+      comment = false;
       continue;
     }
     
@@ -395,7 +427,8 @@ void parse_line()
     }
     else
     {
-      Serial.println("Invalid number");
+      Serial.print("Invalid number: ");
+      Serial.println(line);
       return;
     }   
 
@@ -425,7 +458,7 @@ void prepare_motion()
 {
   // why is ustepper disabling?
   pinMode(ENABLE_PIN, OUTPUT);
-  //digitalWrite(ENABLE_PIN, HIGH);
+  digitalWrite(ENABLE_PIN, HIGH);
 
   long a_current_steps = motor_a.getPositionSteps();
   long b_current_steps = motor_b.getPositionSteps();
@@ -524,12 +557,16 @@ void loop()
       if ((c == '\n') || (c == '\r')) // End of line reached
       { 
         line[char_counter] = 0; // Set string termination character.
-
-        if (char_counter > 0) 
-          parse_line();
         
-        char_counter = 0; 
-        line[0] = 0;
+        if (char_counter > 0) 
+        {
+          //Serial.println(line);
+          parse_line();
+          
+          char_counter = 0; 
+        }
+        
+        memset(line, 0, 128);
       }
       else 
       {
@@ -571,7 +608,18 @@ void setup()
   while (!Serial)
     delay(10); // for arduino micro  
 
-  Serial.print("Ready\r\n");
+  while (true)
+  {
+    char init = Serial.read();
+    
+    if (init == '>')
+    {
+      Serial.println("Ready");
+      break;
+    }
+
+    delay(100);
+  }
 
   motor_a.enable();
   motor_b.enable();
