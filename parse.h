@@ -14,28 +14,29 @@ void parse_line()
 
   while (line[char_counter] != 0)
   {
-    if (line[char_counter] == ' ' || line[char_counter] == '\r' || line[char_counter] == '\n')
+    char ch = line[char_counter];
+
+    if (ch == ' ' || ch == '\r' || ch == '\n')
     {
       char_counter++;
       continue;
     }
 
-    if (line[char_counter] == '(' || comment)
+    if (ch == '(' || comment)
     {
       comment = true;
       char_counter++;
       continue;
     }
 
-    if (line[char_counter] == ')')
+    if (ch == ')')
     {
-      char_counter++;
       comment = false;
+      char_counter++;
       continue;
     }
 
-    char letter = line[char_counter];
-    char_counter++;
+    char_counter++; // TODO is this needed?
 
     float value = 0.0;
     if (read_float(line, &char_counter, &value))
@@ -46,18 +47,11 @@ void parse_line()
         Serial.println(value);
       }
 
-      if (letter == 'G')
+      if (ch == 'G')
       {
-        if (value == 1)
-        {
-          current_state.rapid = true;
-        }
-        else if (value == 0)
-        {
-          current_state.rapid = false;
-        }
+        current_state.rapid = value == 1;
       }
-      else if (letter == 'M')
+      else if (ch == 'M')
       {
         if (value == 0.0) /* diagnostic printout */
         {
@@ -78,15 +72,15 @@ void parse_line()
           current_block.lift = value == 3;
         }
       }
-      else if (letter == 'F')
+      else if (ch == 'F')
       {
         current_block.feed = min((int)value, MAX_FEED);
       }
-      else if (letter == 'X')
+      else if (ch == 'X')
       {
         current_block.pt.x = value;
       }
-      else if (letter == 'Y')
+      else if (ch == 'Y')
       {
         current_block.pt.y = value;
       }

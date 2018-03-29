@@ -43,6 +43,20 @@ uStepper motor_b(STEPS_PER_MM, 1, 1000000 /* us / s */ / INTERRUPT_PERIOD_US, 8,
 /* Servo object */
 RBD::Servo servo(2 /* pin */, 1000 /* pulse_min */, 2750 /* pulse_max */);
 
+/* Inverse kinematics: Calculate plotter position from cartesian coordinates. */
+plot_pos pos_from_pt(const cartesian_pt & pt)
+{
+  float dxa = pt.x - ORIGIN_X;
+  float dxb = pt.x + ORIGIN_X;
+
+  float dy = pt.y - ORIGIN_Y;
+
+  return plot_pos(
+    sqrt(dxa * dxa + dy * dy),
+    sqrt(dxb * dxb + dy * dy)
+  );
+}
+
 plot_pos get_current_plot_pos()
 {
   return plot_pos(

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "config.h"
-
 struct cartesian_pt
 {
   float x = 0.0;
@@ -21,17 +19,3 @@ struct plot_pos
   plot_pos() : a(0.0), b(0.0) {}
   plot_pos(const float a, const float b) : a(a), b(b) {}
 };
-
-/* Inverse kinematics: Calculate plotter position from cartesian coordinates. */
-plot_pos pos_from_pt(const cartesian_pt & pt)
-{
-  float dxa = pt.x - ORIGIN_X;
-  float dxb = pt.x + ORIGIN_X;
-
-  float dy = pt.y - ORIGIN_Y;
-
-  return plot_pos(
-    sqrt(dxa * dxa + dy * dy),
-    sqrt(dxb * dxb + dy * dy)
-  );
-}
