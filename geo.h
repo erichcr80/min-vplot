@@ -1,5 +1,8 @@
 #pragma once
 
+#include "config.h"
+#include "Arduino.h"
+
 struct cartesian_pt
 {
   float x = 0.0;

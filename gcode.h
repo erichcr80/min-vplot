@@ -1,5 +1,8 @@
 #pragma once
 
+#include "geo.h"
+#include "config.h"
+
 /* gcode block object; contains movement and state change data. Parsed from serial and stored in buffer. */
 class gc_block
 {
