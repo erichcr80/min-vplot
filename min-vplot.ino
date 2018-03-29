@@ -10,6 +10,24 @@
 #include "gcode.h"
 #include "parse.h"
 
+machine_state current_state;
+
+
+/* Inverse kinematics: Calculate plotter position from cartesian coordinates. */
+plot_pos pos_from_pt(const cartesian_pt & pt)
+{
+  float dxa = pt.x - ORIGIN_X;
+  float dxb = pt.x + ORIGIN_X;
+
+  float dy = pt.y - ORIGIN_Y;
+
+  return plot_pos(
+    sqrt(dxa * dxa + dy * dy),
+    sqrt(dxb * dxb + dy * dy)
+  );
+};
+
+
 /* This function calculates destination data, stored in the current state, the speed for new moves and sets the motor speeds. */
 void do_move(const cartesian_pt & next_pt)
 {
@@ -75,9 +93,9 @@ void do_move(const cartesian_pt & next_pt)
   if (log_debug)
   {
     Serial.print("A speed: ");
-    Serial.print(motor_a.getSpeed());
+    Serial.print(current_state.motor_a.getSpeed());
     Serial.print(" B speed: " );
-    Serial.println(motor_b.getSpeed());
+    Serial.println(current_state.motor_b.getSpeed());
   }
 
  interrupts();
@@ -92,8 +110,8 @@ void calculate_and_set_speed_ratio(float da, float db)
   float a_speed = current_state.feed;
   float b_speed = current_state.feed;
 
-  long a_current_steps = motor_a.getPositionSteps();
-  long b_current_steps = motor_b.getPositionSteps();
+  long a_current_steps = current_state.motor_a.getPositionSteps();
+  long b_current_steps = current_state.motor_b.getPositionSteps();
 
   long da_steps = abs(current_state.a_dest - a_current_steps);
   long db_steps = abs(current_state.b_dest - b_current_steps);
@@ -120,8 +138,8 @@ void calculate_and_set_speed_ratio(float da, float db)
   a_speed = da > 0 ? a_speed : -a_speed;
   b_speed = db > 0 ? b_speed : -b_speed;
 
-  motor_a.setSpeed(a_speed);
-  motor_b.setSpeed(b_speed);
+  current_state.motor_a.setSpeed(a_speed);
+  current_state.motor_b.setSpeed(b_speed);
 }
 
 void do_lift(bool lift)
@@ -135,7 +153,7 @@ void do_lift(bool lift)
   }
 
   current_state.lift = lift;
-  servo.moveToDegrees(lift ? SERVO_LIFT_POSITION : 0);
+  current_state.servo.moveToDegrees(lift ? SERVO_LIFT_POSITION : 0);
 }
 
 /* Prepare motion from the buffer; if we have arrived at our end point, start the next move. */
@@ -150,8 +168,8 @@ void prepare_motion()
   pinMode(ENABLE_PIN, OUTPUT);
   digitalWrite(ENABLE_PIN, HIGH);
 
-  long a_current_steps = motor_a.getPositionSteps();
-  long b_current_steps = motor_b.getPositionSteps();
+  long a_current_steps = current_state.motor_a.getPositionSteps();
+  long b_current_steps = current_state.motor_b.getPositionSteps();
 
   if (a_current_steps == current_state.a_dest && b_current_steps == current_state.b_dest)
   {
@@ -195,8 +213,8 @@ void prepare_motion()
      * I count 13 divides/mults and 4 sqrts in these calculations for perhaps .5 ms total.
      */
 
-    const plot_pos pos = get_current_plot_pos();
-    const cartesian_pt pt = get_current_cartesian_location();
+    const plot_pos pos = current_state.get_current_plot_pos();
+    const cartesian_pt pt = current_state.get_current_cartesian_location();
 
     const cartesian_vec vec(current_state.pt.x /* g-code target */ - pt.x, current_state.pt.y - pt.y);
     const float vec_length = sqrt(vec.x * vec.x + vec.y * vec.y);
@@ -226,9 +244,9 @@ void prepare_motion()
         Serial.print(norm_vec.y);
         Serial.print(" ");
         Serial.print("A speed: ");
-        Serial.print(motor_a.getSpeed());
+        Serial.print(current_state.motor_a.getSpeed());
         Serial.print(" B speed: " );
-        Serial.println(motor_b.getSpeed());
+        Serial.println(current_state.motor_b.getSpeed());
       }
     }
   }
@@ -251,7 +269,7 @@ void loop()
         if (char_counter > 0)
         {
           //Serial.println(line);
-          parse_line();
+          parse_line(current_state);
 
           char_counter = 0;
         }
@@ -273,13 +291,13 @@ void loop()
 /* Main interrupt routine, drives steppers and servo. Called every INTERRUPT_PERIOD_US. */
 void stepper_isr()
 {
-  if (motor_a.getPositionSteps() != current_state.a_dest)
-    motor_a.step();
+  if (current_state.motor_a.getPositionSteps() != current_state.a_dest)
+    current_state.motor_a.step();
 
-  if (motor_b.getPositionSteps() != current_state.b_dest)
-    motor_b.step();
+  if (current_state.motor_b.getPositionSteps() != current_state.b_dest)
+    current_state.motor_b.step();
 
-   servo.update();
+   current_state.servo.update();
 }
 
 void setup()
@@ -288,9 +306,9 @@ void setup()
   Timer1.attachInterrupt(stepper_isr);
 
   /* Reset the servo position; upon startup, the horn should be pushing the pen tip off the surface. */
-  servo.moveToDegrees(0);
+  current_state.servo.moveToDegrees(0);
   delay(1000);
-  servo.moveToDegrees(SERVO_LIFT_POSITION);
+  current_state.servo.moveToDegrees(SERVO_LIFT_POSITION);
 
   Serial.begin(115200);
   Serial.setTimeout(0); /* This allows us to prepare the next move without blocking on inputs. */
@@ -311,12 +329,12 @@ void setup()
     delay(100);
   }
 
-  motor_a.enable();
-  motor_b.enable();
+  current_state.motor_a.enable();
+  current_state.motor_b.enable();
 
-  motor_a.setSpeed(0);
-  motor_b.setSpeed(0);
+  current_state.motor_a.setSpeed(0);
+  current_state.motor_b.setSpeed(0);
 
-  motor_a.setPosition(current_state.a_steps);
-  motor_b.setPosition(current_state.b_steps);
+  current_state.motor_a.setPosition(current_state.a_steps);
+  current_state.motor_b.setPosition(current_state.b_steps);
 }
