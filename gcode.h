@@ -11,7 +11,7 @@ class gc_block
 public:
   cartesian_pt pt;
 
-  int feed = MAX_FEED;
+  int feed = MAX_FEED_MM_PER_S;
   bool lift = true;
 
   gc_block() {}

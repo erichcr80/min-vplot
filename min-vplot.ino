@@ -252,6 +252,8 @@ void prepare_motion()
   }
 }
 
+static char line[128];
+
 /* Main loop: parse serial inputs and prepare motion from the buffer. */
 void loop()
 {
@@ -269,7 +271,7 @@ void loop()
         if (char_counter > 0)
         {
           //Serial.println(line);
-          parse_line(current_state);
+          parse_line(line, current_state);
 
           char_counter = 0;
         }

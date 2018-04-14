@@ -10,7 +10,7 @@
 
 #include "grbl_read_float.h" // from grbl
 
-void parse_line(machine_state & current_state)
+void parse_line(char * line, machine_state & current_state)
 {
   uint8_t char_counter = 0;
   bool movement = false;
@@ -80,7 +80,7 @@ void parse_line(machine_state & current_state)
       }
       else if (ch == 'F')
       {
-        current_block.feed = min((int)value, MAX_FEED);
+        current_block.feed = min((int)value, MAX_FEED_MM_PER_S);
       }
       else if (ch == 'X')
       {
@@ -108,7 +108,9 @@ void parse_line(machine_state & current_state)
     buffer_add(current_block);
 
     if (!get_buffer_full())
+    {
       Serial.println("ok");
+    }
   }
   else
   {

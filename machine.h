@@ -12,7 +12,7 @@
 class machine_state
 {
 public:
-  int feed = MAX_FEED;
+  int feed = MAX_FEED_MM_PER_S;
 
   bool rapid = false;
 
