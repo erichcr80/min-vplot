@@ -1,7 +1,8 @@
+/* min-vplot: Minimal motion controller for v-plotter. */
+
 #pragma once
 
 #include "config.h"
-#include "Arduino.h"
 
 struct cartesian_pt
 {
@@ -12,7 +13,7 @@ struct cartesian_pt
   cartesian_pt(const float x, const float y) : x(x), y(y) {}
 };
 
-typedef cartesian_pt cartesian_vec;
+using cartesian_vec = cartesian_pt;
 
 struct plot_pos
 {

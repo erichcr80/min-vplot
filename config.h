@@ -1,3 +1,5 @@
+/* min-vplot: Minimal motion controller for v-plotter. */
+
 #pragma once
 
 #define STEPPER_DISTANCE_MM 1800.0

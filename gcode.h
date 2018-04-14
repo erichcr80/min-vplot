@@ -1,3 +1,5 @@
+/* min-vplot: Minimal motion controller for v-plotter. */
+
 #pragma once
 
 #include "geo.h"
