@@ -1,7 +1,9 @@
+/* min-vplot: Minimal motion controller for v-plotter. */
+
 #pragma once
 
 #include <RBD_Servo.h>
-#include "uStepper.h"
+#include "dStepper.h"
 
 #include "config.h"
 #include "geo.h"
@@ -25,8 +27,8 @@ public:
 
   bool lift = true;
 
-  uStepper motor_a;
-  uStepper motor_b;
+  dStepper motor_a;
+  dStepper motor_b;
 
   /* Servo object */
   RBD::Servo servo;
